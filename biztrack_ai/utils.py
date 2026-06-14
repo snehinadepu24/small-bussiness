@@ -159,7 +159,7 @@ _COMMON_CSS = """
         font-family: 'Plus Jakarta Sans', sans-serif !important;
     }
     .vy-brand-name { color: #ffffff !important; font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
-    .vy-brand-tag { color: #94a3b8 !important; margin: 6px 0 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+    .vy-brand-tag { color: #cbd5e1 !important; margin: 6px 0 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
     .vy-brand-badge { display: inline-block; margin-top: 12px; padding: 4px 12px; background: rgba(13, 148, 136, 0.2); border: 1px solid rgba(20, 184, 166, 0.35); border-radius: 20px; font-size: 10px; color: #5eead4 !important; font-weight: 700; }
     .vy-banner-greeting { font-size: 14px; color: rgba(255,255,255,0.85) !important; margin: 0 0 6px 0; font-weight: 500; }
     .vy-banner-name { font-size: 28px; font-weight: 800; margin: 0; color: #ffffff !important; letter-spacing: -0.03em; line-height: 1.2; }
@@ -220,7 +220,8 @@ _COMMON_CSS = """
     section[data-testid="stSidebar"] .nav-link {
         font-size: 14px !important;
         font-weight: 500 !important;
-        color: #e2e8f0 !important;
+        color: #f1f5f9 !important;
+        -webkit-text-fill-color: #f1f5f9 !important;
         padding: 11px 16px !important;
         margin: 2px 10px !important;
         border-radius: 10px !important;
@@ -231,9 +232,10 @@ _COMMON_CSS = """
         text-decoration: none !important;
         border: 1px solid transparent !important;
         background-color: transparent !important;
+        opacity: 1 !important;
     }
     section[data-testid="stSidebar"] .nav-link i {
-        color: #94a3b8 !important;
+        color: #cbd5e1 !important;
         font-size: 17px !important;
         width: 20px !important;
         text-align: center !important;
@@ -721,32 +723,112 @@ def get_form_controls_patch(is_dark=False):
 
 
 def get_sidebar_patch_css():
-    """Force sidebar blocks transparent — overrides Streamlit white sidebar panels."""
+    """Sidebar colors — loaded last so they win over Streamlit Cloud light theme."""
     return """
 <style>
+    /* Dark sidebar shell (section + wrappers — not just transparent) */
     section[data-testid="stSidebar"],
-    section[data-testid="stSidebar"] > div,
-    section[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+    section[data-testid="stSidebar"] > div:first-child,
+    section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+        background: linear-gradient(180deg, #0a0f1a 0%, #0f172a 50%, #111827 100%) !important;
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+    }
+
+    /* Inner panels transparent so dark shell shows through */
     section[data-testid="stSidebar"] [data-testid="stVerticalBlock"],
     section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"],
     section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] > div,
-    section[data-testid="stSidebar"] .stMarkdown,
+    section[data-testid="stSidebar"] [data-testid="stSidebarHeader"],
     section[data-testid="stSidebar"] .element-container,
     section[data-testid="stSidebar"] [data-testid="stElementContainer"],
     section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
-    section[data-testid="stSidebar"] iframe[title="streamlit_option_menu.option_menu"] + div,
-    section[data-testid="stSidebar"] div:has(> nav) {
+    section[data-testid="stSidebar"] div[class*="st-emotion-cache"]:not(.nav-link):not(.nav-link-selected) {
         background: transparent !important;
         background-color: transparent !important;
         box-shadow: none !important;
     }
-    section[data-testid="stSidebar"] .nav-link {
-        color: #e2e8f0 !important;
-        background-color: transparent !important;
+
+    /* Stop main-app light textColor from bleeding into sidebar */
+    section[data-testid="stSidebar"] .stMarkdown,
+    section[data-testid="stSidebar"] .stMarkdown p,
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] span,
+    section[data-testid="stSidebar"] a {
+        color: inherit;
     }
-    section[data-testid="stSidebar"] .nav-link-selected {
-        background: linear-gradient(135deg, #0f766e, #0d9488, #14b8a6) !important;
+
+    /* Brand header */
+    section[data-testid="stSidebar"] .vy-brand-name {
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+    section[data-testid="stSidebar"] .vy-brand-tag {
+        color: #cbd5e1 !important;
+        -webkit-text-fill-color: #cbd5e1 !important;
+    }
+
+    /* Nav menu — high contrast on dark bg */
+    section[data-testid="stSidebar"] nav,
+    section[data-testid="stSidebar"] .nav {
+        background: transparent !important;
+    }
+    section[data-testid="stSidebar"] .nav-link {
+        color: #f1f5f9 !important;
+        -webkit-text-fill-color: #f1f5f9 !important;
+        background-color: transparent !important;
+        opacity: 1 !important;
+    }
+    section[data-testid="stSidebar"] .nav-link span {
+        color: #f1f5f9 !important;
+        -webkit-text-fill-color: #f1f5f9 !important;
+    }
+    section[data-testid="stSidebar"] .nav-link i {
+        color: #cbd5e1 !important;
+    }
+    section[data-testid="stSidebar"] .nav-link:hover,
+    section[data-testid="stSidebar"] .nav-link:hover span {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        background: rgba(255, 255, 255, 0.1) !important;
+    }
+    section[data-testid="stSidebar"] .nav-link:hover i {
+        color: #5eead4 !important;
+    }
+    section[data-testid="stSidebar"] .nav-link-selected,
+    section[data-testid="stSidebar"] .nav-link-selected span {
+        background: linear-gradient(135deg, #0f766e 0%, #0d9488 55%, #14b8a6 100%) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        opacity: 1 !important;
+    }
+    section[data-testid="stSidebar"] .nav-link-selected i {
+        color: #ffffff !important;
+    }
+
+    /* User card */
+    section[data-testid="stSidebar"] .vy-user-name {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+    section[data-testid="stSidebar"] .vy-user-role {
+        opacity: 1 !important;
+    }
+
+    /* Logout button */
+    section[data-testid="stSidebar"] .stButton > button {
+        background: rgba(255, 255, 255, 0.06) !important;
+        border: 1px solid rgba(255, 255, 255, 0.14) !important;
+        color: #fca5a5 !important;
+        -webkit-text-fill-color: #fca5a5 !important;
+    }
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(239, 68, 68, 0.15) !important;
+        border-color: rgba(239, 68, 68, 0.3) !important;
+        color: #fecaca !important;
+        -webkit-text-fill-color: #fecaca !important;
     }
 </style>
 """
@@ -1104,13 +1186,13 @@ def get_section_header(icon, title, subtitle=""):
 
 def get_user_card(name, role):
     """Get styled user card for sidebar"""
-    role_color = "#34d399" if role == "owner" else "#5eead4"
-    role_bg = "rgba(52, 211, 153, 0.15)" if role == "owner" else "rgba(94, 234, 212, 0.12)"
+    role_color = "#6ee7b7" if role == "owner" else "#5eead4"
+    role_bg = "rgba(52, 211, 153, 0.2)" if role == "owner" else "rgba(94, 234, 212, 0.15)"
     return f"""
 <div style="
     padding: 14px 16px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
     border-radius: 12px;
     margin: 8px 10px 0 10px;
 ">
@@ -1125,7 +1207,7 @@ def get_user_card(name, role):
         ">{name[0].upper()}</div>
         <div>
             <div class="vy-user-name">{name}</div>
-            <span class="vy-user-role" style="background: {role_bg}; color: {role_color} !important;">{role.title()}</span>
+            <span class="vy-user-role" style="background: {role_bg}; color: {role_color} !important; border: 1px solid rgba(255,255,255,0.12);">{role.title()}</span>
         </div>
     </div>
 </div>

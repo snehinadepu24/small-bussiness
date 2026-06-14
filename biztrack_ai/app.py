@@ -45,7 +45,6 @@ if 'bill_cart' not in st.session_state:
 # Apply theme
 st.markdown(utils.apply_theme(st.session_state.dark_mode), unsafe_allow_html=True)
 st.markdown(utils.get_form_controls_patch(st.session_state.dark_mode), unsafe_allow_html=True)
-st.markdown(utils.get_sidebar_patch_css(), unsafe_allow_html=True)
 
 # Global toast notification handler
 if 'toast_msg' in st.session_state:
@@ -1116,6 +1115,7 @@ def main():
 
     # Sidebar
     with st.sidebar:
+        st.markdown(utils.get_sidebar_patch_css(), unsafe_allow_html=True)
         st.markdown(utils.get_sidebar_navigation(), unsafe_allow_html=True)
 
         selected = option_menu(
@@ -1130,15 +1130,15 @@ def main():
                     "background-color": "rgba(0,0,0,0)",
                     "margin": "0",
                 },
-                "icon": {"color": "#94a3b8", "font-size": "17px"},
+                "icon": {"color": "#cbd5e1", "font-size": "17px"},
                 "nav-link": {
                     "font-size": "14px",
                     "text-align": "left",
                     "margin": "2px 10px",
                     "padding": "11px 16px",
                     "border-radius": "10px",
-                    "--hover-color": "rgba(255,255,255,0.08)",
-                    "color": "#e2e8f0",
+                    "--hover-color": "rgba(255,255,255,0.1)",
+                    "color": "#f1f5f9",
                     "font-weight": "500",
                     "background-color": "rgba(0,0,0,0)",
                 },
