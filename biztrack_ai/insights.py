@@ -5,7 +5,6 @@ Generates smart business insights from data analysis
 
 import pandas as pd
 from datetime import datetime, timedelta
-from database import get_connection
 import inventory
 import sales
 import expenses

@@ -3,98 +3,96 @@ Authentication module for BizTrack AI
 Handles user signup, login, and session management
 """
 
-import sqlite3
 import hashlib
-from database import get_connection, log_activity
+
+from database import db, log_activity, is_unique_violation
+
 
 def hash_password(password):
     """Hash password using SHA-256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
+
 def signup(name, email, password, role='staff'):
     """Register a new user"""
-    conn = get_connection()
-    cursor = conn.cursor()
+    email = email.strip().lower()
     try:
         hashed_pw = hash_password(password)
-        cursor.execute('''
-            INSERT INTO users (name, email, password, role)
-            VALUES (?, ?, ?, ?)
-        ''', (name, email, hashed_pw, role))
-        conn.commit()
-        conn.close()
+        db().table("users").insert({
+            "name": name,
+            "email": email,
+            "password": hashed_pw,
+            "role": role,
+        }).execute()
         return True, "Account created successfully!"
-    except sqlite3.IntegrityError:
-        conn.close()
-        return False, "Email already exists!"
     except Exception as e:
-        conn.close()
+        if is_unique_violation(e):
+            return False, "Email already exists!"
         return False, f"Error: {str(e)}"
+
 
 def login(email, password):
     """Authenticate user login"""
-    conn = get_connection()
-    cursor = conn.cursor()
+    email = email.strip().lower()
     hashed_pw = hash_password(password)
-    cursor.execute('''
-        SELECT id, name, email, role FROM users
-        WHERE email = ? AND password = ?
-    ''', (email, hashed_pw))
-    user = cursor.fetchone()
-    conn.close()
+    response = (
+        db()
+        .table("users")
+        .select("id, name, email, role")
+        .eq("email", email)
+        .eq("password", hashed_pw)
+        .execute()
+    )
+    users = response.data or []
 
-    if user:
-        log_activity(user[0], "Login", f"User {user[1]} logged in")
+    if users:
+        user = users[0]
+        log_activity(user["id"], "Login", f"User {user['name']} logged in")
         return True, {
-            'id': user[0],
-            'name': user[1],
-            'email': user[2],
-            'role': user[3]
+            'id': user['id'],
+            'name': user['name'],
+            'email': user['email'],
+            'role': user['role'],
         }
     return False, "Invalid email or password!"
 
+
 def get_all_users():
     """Get all users (Admin only)"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, name, email, role, created_at FROM users')
-    users = cursor.fetchall()
-    conn.close()
-    return users
+    response = (
+        db()
+        .table("users")
+        .select("id, name, email, role, created_at")
+        .execute()
+    )
+    rows = response.data or []
+    return [(r["id"], r["name"], r["email"], r["role"], r["created_at"]) for r in rows]
+
 
 def update_user_role(user_id, new_role):
     """Update user role"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('UPDATE users SET role = ? WHERE id = ?', (new_role, user_id))
-    conn.commit()
-    conn.close()
+    db().table("users").update({"role": new_role}).eq("id", user_id).execute()
+
 
 def delete_user(user_id):
     """Delete a user"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
-    conn.commit()
-    conn.close()
+    db().table("users").delete().eq("id", user_id).execute()
+
 
 def change_password(user_id, old_password, new_password):
     """Change user password"""
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # Verify old password
     hashed_old = hash_password(old_password)
-    cursor.execute('SELECT id FROM users WHERE id = ? AND password = ?',
-                   (user_id, hashed_old))
-    if not cursor.fetchone():
-        conn.close()
+    response = (
+        db()
+        .table("users")
+        .select("id")
+        .eq("id", user_id)
+        .eq("password", hashed_old)
+        .execute()
+    )
+    if not response.data:
         return False, "Current password is incorrect!"
 
-    # Update to new password
     hashed_new = hash_password(new_password)
-    cursor.execute('UPDATE users SET password = ? WHERE id = ?',
-                   (hashed_new, user_id))
-    conn.commit()
-    conn.close()
+    db().table("users").update({"password": hashed_new}).eq("id", user_id).execute()
     return True, "Password changed successfully!"

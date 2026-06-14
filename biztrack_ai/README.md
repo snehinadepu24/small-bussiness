@@ -1,4 +1,4 @@
-# BizTrack AI
+# Vyapar
 
 Smart Inventory & Bookkeeping for Small Businesses
 
@@ -14,11 +14,28 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Seed MVP Demo Data
+
+After starting the app (or from terminal):
+
+```bash
+python seed.py           # seed if database is empty
+python seed.py --force   # wipe and reseed everything
+```
+
+Or use **Settings → Seed MVP Data** inside the app.
+
 ## Demo Accounts
 
-After generating sample data in Settings:
-- **Owner**: owner@biztrack.ai / demo123
-- **Staff**: staff@biztrack.ai / demo123
+After seeding:
+
+| Role  | Email               | Password |
+|-------|---------------------|----------|
+| Owner | owner@biztrack.ai   | demo123  |
+| Staff | staff@biztrack.ai   | demo123  |
+| Staff | manager@biztrack.ai | demo123  |
+
+**Seed includes:** 40 products (6 low-stock), 166 sales, 45 expenses, 25 activity logs.
 
 ## Features
 
@@ -37,7 +54,8 @@ After generating sample data in Settings:
 ```
 biztrack_ai/
   app.py              # Main Streamlit application
-  database.py         # SQLite database setup
+  database.py         # Supabase connection
+  seed.py             # MVP demo data seeder (run: python seed.py)
   auth.py             # Authentication module
   inventory.py        # Inventory management
   sales.py            # Sales management
@@ -45,7 +63,6 @@ biztrack_ai/
   reports.py          # Report generation
   forecasting.py      # Demand forecasting
   insights.py         # AI business insights
-  sample_data.py      # Demo data generator
+  sample_data.py      # App wrapper for seed.py
   utils.py            # Utilities and theming
-  data/               # SQLite database storage
 ```

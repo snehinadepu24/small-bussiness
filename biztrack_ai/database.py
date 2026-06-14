@@ -1,116 +1,121 @@
 """
 Database module for BizTrack AI
-Handles SQLite database connections and table creation
+Uses Supabase Python client (URL + service role key only)
 """
 
-import sqlite3
 import os
-from datetime import datetime
+import time
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'biztrack.db')
+from dotenv import load_dotenv
 
-def get_connection():
-    """Get database connection"""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    return sqlite3.connect(DB_PATH)
+try:
+    import httpx
+    _RETRYABLE_ERRORS = (
+        httpx.ReadError,
+        httpx.ConnectError,
+        httpx.TimeoutException,
+        httpx.NetworkError,
+        ConnectionError,
+        TimeoutError,
+    )
+except ImportError:
+    _RETRYABLE_ERRORS = (ConnectionError, TimeoutError, OSError)
 
-def init_database():
-    """Initialize database with all required tables"""
-    conn = get_connection()
-    cursor = conn.cursor()
+# Always load .env from project root (works with streamlit run)
+_ENV_PATH = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(_ENV_PATH)
 
-    # Users table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'staff',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+_client = None
+
+
+def _get_secret(key, default=None):
+    """Prefer .env locally; fall back to Streamlit secrets on Cloud."""
+    value = os.getenv(key)
+    if value:
+        return value
+
+    try:
+        import streamlit as st
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        if get_script_run_ctx() is not None and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+
+    return default
+
+
+def get_supabase_client():
+    """Get Supabase Python client. Requires SUPABASE_URL + SUPABASE_KEY only."""
+    global _client
+    if _client is not None:
+        return _client
+
+    from supabase import create_client
+
+    url = _get_secret("SUPABASE_URL")
+    key = (
+        _get_secret("SUPABASE_KEY")
+        or _get_secret("SUPABASE_SERVICE_ROLE_KEY")
+    )
+    if not url or not key:
+        raise ValueError(
+            "Set SUPABASE_URL and SUPABASE_KEY in .env (local) or "
+            ".streamlit/secrets.toml / Streamlit Cloud secrets."
         )
-    ''')
+    _client = create_client(url, key)
+    return _client
 
-    # Products table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS products (
-            product_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            category TEXT NOT NULL,
-            supplier TEXT,
-            cost_price REAL NOT NULL,
-            selling_price REAL NOT NULL,
-            quantity INTEGER NOT NULL DEFAULT 0,
-            reorder_level INTEGER NOT NULL DEFAULT 10,
-            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
 
-    # Sales table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sales (
-            sale_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER NOT NULL,
-            product_name TEXT NOT NULL,
-            quantity_sold INTEGER NOT NULL,
-            unit_price REAL NOT NULL,
-            total_amount REAL NOT NULL,
-            sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (product_id) REFERENCES products(product_id)
-        )
-    ''')
+def db():
+    """Shortcut to Supabase client."""
+    return get_supabase_client()
 
-    # Expenses table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS expenses (
-            expense_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT NOT NULL,
-            description TEXT,
-            amount REAL NOT NULL,
-            expense_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
 
-    # Activity logs table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS activity_logs (
-            log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            action TEXT NOT NULL,
-            details TEXT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-    ''')
+def execute_with_retry(build_and_execute, retries=3, base_delay=0.5):
+    """
+    Run a Supabase query callable (lambda that calls .execute()) with retries
+    on transient network errors (common on Windows under heavy request load).
+    """
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return build_and_execute()
+        except _RETRYABLE_ERRORS as exc:
+            last_error = exc
+            if attempt < retries - 1:
+                time.sleep(base_delay * (2 ** attempt))
+    raise last_error
 
-    conn.commit()
-    conn.close()
+
+def is_unique_violation(exc):
+    """Check if exception is a duplicate key error."""
+    msg = str(exc).lower()
+    return "23505" in msg or "duplicate" in msg or "unique" in msg
+
 
 def log_activity(user_id, action, details=""):
-    """Log user activity"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO activity_logs (user_id, action, details)
-        VALUES (?, ?, ?)
-    ''', (user_id, action, details))
-    conn.commit()
-    conn.close()
+    """Log user activity."""
+    db().table("activity_logs").insert({
+        "user_id": user_id,
+        "action": action,
+        "details": details,
+    }).execute()
+
 
 def get_activity_logs(limit=20):
-    """Get recent activity logs"""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT al.timestamp, u.name, al.action, al.details
-        FROM activity_logs al
-        LEFT JOIN users u ON al.user_id = u.id
-        ORDER BY al.timestamp DESC
-        LIMIT ?
-    ''', (limit,))
-    logs = cursor.fetchall()
-    conn.close()
+    """Get recent activity logs as (timestamp, name, action, details) tuples."""
+    response = (
+        db()
+        .table("activity_logs")
+        .select("timestamp, action, details, users(name)")
+        .order("timestamp", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    logs = []
+    for row in response.data or []:
+        name = (row.get("users") or {}).get("name") if row.get("users") else None
+        logs.append((row["timestamp"], name, row["action"], row.get("details", "")))
     return logs
-
-# Initialize database on module load
-init_database()

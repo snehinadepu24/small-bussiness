@@ -1,5 +1,5 @@
 """
-BizTrack AI - Smart Inventory & Bookkeeping for Small Businesses
+Vyapar - Smart Inventory & Bookkeeping for Small Businesses
 Main Application Entry Point
 """
 
@@ -21,12 +21,13 @@ import reports
 import forecasting
 import insights
 import utils
+import billing
 import sample_data
 
 # Page config
 st.set_page_config(
-    page_title="BizTrack AI",
-    page_icon="📊",
+    page_title="Vyapar",
+    page_icon="🏪",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -38,9 +39,13 @@ if 'dark_mode' not in st.session_state:
     st.session_state.dark_mode = False
 if 'sample_data_loaded' not in st.session_state:
     st.session_state.sample_data_loaded = False
+if 'bill_cart' not in st.session_state:
+    st.session_state.bill_cart = []
 
 # Apply theme
 st.markdown(utils.apply_theme(st.session_state.dark_mode), unsafe_allow_html=True)
+st.markdown(utils.get_form_controls_patch(st.session_state.dark_mode), unsafe_allow_html=True)
+st.markdown(utils.get_sidebar_patch_css(), unsafe_allow_html=True)
 
 # Global toast notification handler
 if 'toast_msg' in st.session_state:
@@ -52,22 +57,24 @@ if 'toast_msg' in st.session_state:
 # Chart layout helper
 # ---------------------------------------------------------------------------
 def _chart_layout(fig, height=320):
-    """Apply premium styling to Plotly figures"""
-    colors = utils.get_chart_colors()
+    """Apply consistent styling to Plotly figures"""
+    is_dark = st.session_state.get('dark_mode', False)
+    text_color = '#94a3b8' if is_dark else '#64748b'
+    grid_color = 'rgba(148,163,184,0.15)' if is_dark else 'rgba(100,116,139,0.12)'
     fig.update_layout(
         height=height,
-        margin=dict(l=16, r=16, t=24, b=16),
+        margin=dict(l=16, r=16, t=32, b=16),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(family='Inter, sans-serif', size=12, color='#6b7280'),
+        font=dict(family='Plus Jakarta Sans, sans-serif', size=12, color=text_color),
         legend=dict(
             orientation='h', yanchor='bottom', y=1.02,
             xanchor='right', x=1,
-            font=dict(size=11),
+            font=dict(size=11, color=text_color),
             bgcolor='rgba(0,0,0,0)',
         ),
-        xaxis=dict(showgrid=False, zeroline=False),
-        yaxis=dict(gridcolor='rgba(0,0,0,.04)', zeroline=False),
+        xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(color=text_color)),
+        yaxis=dict(gridcolor=grid_color, zeroline=False, tickfont=dict(color=text_color)),
     )
     return fig
 
@@ -76,52 +83,26 @@ def _chart_layout(fig, height=320):
 # Login page
 # ---------------------------------------------------------------------------
 def show_login_page():
-    """Display premium login / signup page"""
-    # Hide sidebar on login
-    st.markdown("""
-<style>
-    section[data-testid="stSidebar"] { display: none; }
-    .block-container { max-width: 1100px; padding-top: 40px; }
-</style>
-""", unsafe_allow_html=True)
+    """Display login / signup page"""
+    st.markdown(utils.get_login_page_css(), unsafe_allow_html=True)
 
-    col_hero, col_spacer, col_form = st.columns([1.1, 0.1, 0.9])
+    col_hero, col_spacer, col_form = st.columns([1.1, 0.08, 0.92])
 
     with col_hero:
         st.html(utils.get_login_hero_html())
 
     with col_form:
-        # Glassmorphism card wrapper
-        st.markdown("""
-<div style="
-    background: rgba(255,255,255,.55);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid rgba(255,255,255,.7);
-    border-radius: 24px;
-    padding: 8px 4px 4px 4px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.08);
-    margin-top: 0;
-">
-""", unsafe_allow_html=True)
-
-        st.markdown("""
-<div style="text-align:center; padding: 20px 0 0 0;">
-    <h2 style="margin:0; font-size:22px; color:#1e1b4b !important; font-weight:800;">
-        Welcome Back</h2>
-    <p style="margin:6px 0 0 0; font-size:14px; color:#9ca3af !important;">
-        Sign in to your account to continue</p>
-</div>
-""", unsafe_allow_html=True)
+        st.markdown(utils.get_login_card_header(), unsafe_allow_html=True)
 
         tab1, tab2 = st.tabs(["Login", "Sign Up"])
 
         with tab1:
             with st.form("login_form"):
-                email = st.text_input("Email", placeholder="Enter your email")
+                email = st.text_input("Email address", placeholder="you@company.com")
                 password = st.text_input("Password", type="password", placeholder="Enter your password")
+                st.markdown("<div style='height: 4px'></div>", unsafe_allow_html=True)
 
-                if st.form_submit_button("Sign In", use_container_width=True, type="primary"):
+                if st.form_submit_button("Sign In →", use_container_width=True, type="primary"):
                     if email and password:
                         success, result = auth.login(email, password)
                         if success:
@@ -132,14 +113,17 @@ def show_login_page():
                     else:
                         st.warning("Please fill in all fields")
 
+            st.markdown(utils.get_login_demo_hint(), unsafe_allow_html=True)
+
         with tab2:
             with st.form("signup_form"):
-                name = st.text_input("Full Name", placeholder="Enter your name")
-                email = st.text_input("Email Address", placeholder="Enter your email")
-                password = st.text_input("Password", type="password", placeholder="Create a password")
-                role = st.selectbox("Role", ["staff", "owner"])
+                name = st.text_input("Full name", placeholder="Your full name")
+                email = st.text_input("Email address", placeholder="you@company.com")
+                password = st.text_input("Password", type="password", placeholder="Min. 6 characters")
+                role = st.selectbox("Account type", ["staff", "owner"])
+                st.markdown("<div style='height: 4px'></div>", unsafe_allow_html=True)
 
-                if st.form_submit_button("Create Account", use_container_width=True, type="primary"):
+                if st.form_submit_button("Create Account →", use_container_width=True, type="primary"):
                     if name and email and password:
                         success, message = auth.signup(name, email, password, role)
                         if success:
@@ -148,8 +132,6 @@ def show_login_page():
                             st.error(message)
                     else:
                         st.warning("Please fill in all fields")
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +185,7 @@ def show_dashboard():
                          labels={'revenue': 'Revenue ($)', 'month': 'Month'})
             fig.update_traces(
                 line=dict(color=colors['primary'], width=2.5),
-                fillcolor='rgba(99,102,241,.1)',
+                fillcolor='rgba(13, 148, 136, 0.12)',
             )
             _chart_layout(fig)
             st.plotly_chart(fig, use_container_width=True)
@@ -246,7 +228,7 @@ def show_dashboard():
         top_products = sales.get_top_selling_products(5)
         if not top_products.empty:
             fig = px.bar(top_products, x='Product', y='Revenue',
-                        color='Revenue', color_continuous_scale='Purples')
+                        color='Revenue', color_continuous_scale='Teal')
             fig.update_traces(marker_cornerradius=6)
             fig.update_layout(coloraxis_showscale=False)
             _chart_layout(fig)
@@ -405,84 +387,248 @@ def show_inventory_page():
 
 
 # ---------------------------------------------------------------------------
+# Billing helpers
+# ---------------------------------------------------------------------------
+def _add_to_bill_cart(product_id, product_name, quantity, unit_price):
+    """Add or merge a line in the session cart."""
+    unit_price = round(float(unit_price), 2)
+    quantity = int(quantity)
+    for item in st.session_state.bill_cart:
+        if item["product_id"] == product_id and item["unit_price"] == unit_price:
+            item["quantity"] += quantity
+            item["line_total"] = round(item["quantity"] * item["unit_price"], 2)
+            return
+    st.session_state.bill_cart.append({
+        "product_id": product_id,
+        "product_name": product_name,
+        "quantity": quantity,
+        "unit_price": unit_price,
+        "line_total": round(quantity * unit_price, 2),
+    })
+
+
+def _bill_cart_subtotal():
+    return round(sum(i["line_total"] for i in st.session_state.bill_cart), 2)
+
+
+def _render_bill_summary(bill):
+    """Show a formatted bill receipt."""
+    items_df = billing.get_bill_items(bill["bill_id"])
+    st.markdown(f"""
+<div style="
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 16px;
+">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 16px;">
+        <div>
+            <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em;">Invoice</div>
+            <div style="font-size: 22px; font-weight: 800; color: #0f172a;">{bill['bill_number']}</div>
+        </div>
+        <div style="text-align: right; font-size: 13px; color: #64748b;">
+            {utils.format_date(bill['bill_date'])}
+        </div>
+    </div>
+    <div style="font-size: 14px; color: #334155; margin-bottom: 16px;">
+        <strong>Customer:</strong> {bill.get('customer_name') or 'Walk-in Customer'}<br>
+        <strong>Payment:</strong> {bill.get('payment_method', 'Cash')}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    if not items_df.empty:
+        display = items_df[["Product", "Qty", "Unit Price", "Line Total"]].copy()
+        display["Unit Price"] = display["Unit Price"].apply(lambda x: f"${x:,.2f}")
+        display["Line Total"] = display["Line Total"].apply(lambda x: f"${x:,.2f}")
+        st.dataframe(display, use_container_width=True, hide_index=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Subtotal", utils.format_currency(bill["subtotal"]))
+    with c2:
+        st.metric("Discount", utils.format_currency(bill.get("discount", 0)))
+    with c3:
+        st.metric("Tax", utils.format_currency(bill.get("tax_amount", 0)))
+    with c4:
+        st.metric("Grand Total", utils.format_currency(bill["total_amount"]))
+
+
+# ---------------------------------------------------------------------------
 # Sales page
 # ---------------------------------------------------------------------------
 def show_sales_page():
-    """Display sales management page"""
-    st.markdown(utils.get_section_header("💳", "Sales Management",
-                "Record new sales and view transaction history"),
+    """Display billing and sales management"""
+    st.markdown(utils.get_section_header("💳", "Billing & Sales",
+                "Create multi-item bills and manage invoices"),
                 unsafe_allow_html=True)
 
-    col1, col2 = st.tabs(["Record Sale", "Sales History"])
+    tab_new, tab_history = st.tabs(["New Bill", "Bill History"])
 
-    with col1:
-        st.markdown(utils.get_section_header("🧾", "Record New Sale"), unsafe_allow_html=True)
-
-        # Get products for dropdown
+    with tab_new:
         products_df = inventory.get_all_products()
-        if not products_df.empty:
-            products_list = [f"{row['ID']} - {row['Name']} (Stock: {row['Quantity']})"
-                           for _, row in products_df.iterrows()]
+        if products_df.empty:
+            st.warning("No products in inventory. Add products first under Inventory.")
+            return
 
-            with st.form("record_sale_form"):
-                selected = st.selectbox("Select Product", products_list)
-                quantity = st.number_input("Quantity to Sell", min_value=1, value=1)
-
-                if selected:
-                    product_id = int(selected.split(" - ")[0])
-                    product = inventory.get_product_by_id(product_id)
-                    if product:
-                        unit_price = product[5]  # Selling price
-                        total = quantity * unit_price
-                        st.info(f"Unit Price: ${unit_price:,.2f} | Total: ${total:,.2f}")
-
-                        if st.form_submit_button("Complete Sale", type="primary"):
-                            success, msg = sales.record_sale(
-                                product_id, product[1], quantity, unit_price,
-                                st.session_state.user['id']
-                            )
-                            if success:
-                                st.session_state.toast_msg = msg
-                                st.rerun()
-                            else:
-                                st.error(msg)
-        else:
-            st.warning("No products available. Add inventory first!")
-
-    with col2:
-        st.markdown(utils.get_section_header("📜", "Sales History"), unsafe_allow_html=True)
-
-        # Date filter
-        col_a, col_b, col_c = st.columns([2, 2, 1])
+        st.markdown(utils.get_section_header("🧾", "Bill Details"), unsafe_allow_html=True)
+        col_a, col_b = st.columns(2)
         with col_a:
-            start_date = st.date_input("From", value=datetime.now() - timedelta(days=30))
+            customer_name = st.text_input("Customer name", placeholder="Walk-in Customer")
         with col_b:
-            end_date = st.date_input("To", value=datetime.now())
+            payment_method = st.selectbox("Payment method", billing.get_payment_methods())
+
+        col_c, col_d = st.columns(2)
         with col_c:
-            if st.button("Filter", key="filter_sales"):
-                pass
+            tax_rate = st.number_input("Tax rate (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.5)
+        with col_d:
+            discount = st.number_input("Discount ($)", min_value=0.0, value=0.0, format="%.2f")
 
-        # Get sales
-        sales_df = sales.get_sales_by_date_range(str(start_date), str(end_date))
+        notes = st.text_input("Notes (optional)", placeholder="Delivery instructions, reference, etc.")
 
-        if not sales_df.empty:
-            # Format display
-            display_df = sales_df.copy()
-            display_df['Unit Price'] = display_df['Unit Price'].apply(lambda x: f"${x:,.2f}")
-            display_df['Total'] = display_df['Total'].apply(lambda x: f"${x:,.2f}")
+        st.markdown(utils.get_section_header("➕", "Add Items"), unsafe_allow_html=True)
+        products_list = [
+            f"{row['ID']} - {row['Name']} (Stock: {row['Quantity']})"
+            for _, row in products_df.iterrows()
+        ]
 
+        col1, col2, col3 = st.columns([3, 1, 1])
+        with col1:
+            selected = st.selectbox("Product", products_list, key="bill_product_select")
+        with col2:
+            add_qty = st.number_input("Qty", min_value=1, value=1, key="bill_add_qty")
+
+        product_id = int(selected.split(" - ")[0])
+        product = inventory.get_product_by_id(product_id)
+        default_price = float(product[5]) if product else 0.0
+
+        with col3:
+            add_price = st.number_input("Unit price ($)", min_value=0.0, value=default_price, format="%.2f",
+                                        key="bill_add_price")
+
+        if st.button("Add to Bill", type="secondary"):
+            if product:
+                _add_to_bill_cart(product_id, product[1], add_qty, add_price)
+                st.session_state.toast_msg = f"Added {add_qty}x {product[1]}"
+                st.rerun()
+
+        st.markdown(utils.get_section_header("🛒", "Current Bill"), unsafe_allow_html=True)
+
+        if not st.session_state.bill_cart:
+            st.info("No items yet. Select products above and click **Add to Bill**.")
+        else:
+            cart_df = pd.DataFrame(st.session_state.bill_cart)
+            cart_display = cart_df[["product_name", "quantity", "unit_price", "line_total"]].copy()
+            cart_display.columns = ["Product", "Qty", "Unit Price", "Line Total"]
+            cart_display["Unit Price"] = cart_display["Unit Price"].apply(lambda x: f"${x:,.2f}")
+            cart_display["Line Total"] = cart_display["Line Total"].apply(lambda x: f"${x:,.2f}")
+            st.dataframe(cart_display, use_container_width=True, hide_index=True)
+
+            subtotal = _bill_cart_subtotal()
+            discount_applied = min(float(discount), subtotal)
+            taxable = subtotal - discount_applied
+            tax_amount = round(taxable * (float(tax_rate) / 100.0), 2)
+            grand_total = round(taxable + tax_amount, 2)
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Subtotal", utils.format_currency(subtotal))
+            m2.metric("Discount", utils.format_currency(discount_applied))
+            m3.metric("Tax", utils.format_currency(tax_amount))
+            m4.metric("Grand Total", utils.format_currency(grand_total))
+
+            btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 2])
+            with btn_col1:
+                if st.button("Clear Bill"):
+                    st.session_state.bill_cart = []
+                    st.rerun()
+            with btn_col2:
+                remove_options = {
+                    f"{i + 1}. {item['product_name']} (x{item['quantity']})": i
+                    for i, item in enumerate(st.session_state.bill_cart)
+                }
+                to_remove = st.selectbox("Remove line", ["—"] + list(remove_options.keys()), key="bill_remove_select")
+                if to_remove != "—" and st.button("Remove", key="bill_remove_btn"):
+                    idx = remove_options[to_remove]
+                    st.session_state.bill_cart.pop(idx)
+                    st.rerun()
+            with btn_col3:
+                if st.button("Complete Bill & Update Inventory", type="primary", use_container_width=True):
+                    success, result = billing.create_bill(
+                        st.session_state.bill_cart,
+                        customer_name=customer_name,
+                        payment_method=payment_method,
+                        notes=notes,
+                        tax_rate=tax_rate,
+                        discount=discount,
+                        user_id=st.session_state.user["id"],
+                    )
+                    if success:
+                        st.session_state.bill_cart = []
+                        st.session_state.last_bill_id = result
+                        bill, _ = billing.get_bill_detail(result)
+                        st.session_state.toast_msg = (
+                            f"Bill {bill['bill_number']} created — {utils.format_currency(bill['total_amount'])}"
+                        )
+                        st.rerun()
+                    else:
+                        st.error(result)
+
+        if st.session_state.get("last_bill_id"):
+            bill, _ = billing.get_bill_detail(st.session_state.last_bill_id)
+            if bill:
+                st.markdown("---")
+                st.markdown(utils.get_section_header("✅", "Last Bill Created"), unsafe_allow_html=True)
+                _render_bill_summary(bill)
+
+    with tab_history:
+        st.markdown(utils.get_section_header("📜", "Bill History"), unsafe_allow_html=True)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            start_date = st.date_input("From", value=datetime.now() - timedelta(days=30), key="bill_hist_start")
+        with col_b:
+            end_date = st.date_input("To", value=datetime.now(), key="bill_hist_end")
+
+        bills_df = billing.get_bills_by_date_range(start_date, end_date)
+
+        if bills_df.empty:
+            st.info("No bills found for the selected period.")
+        else:
+            display_df = bills_df.copy()
+            for col in ["Subtotal", "Discount", "Tax", "Total"]:
+                if col in display_df.columns:
+                    display_df[col] = display_df[col].apply(lambda x: f"${x:,.2f}")
             st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-            # Summary stats
-            total_revenue = sales_df['Total'].sum()
-            total_units = sales_df['Quantity'].sum()
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.metric("Total Revenue", f"${total_revenue:,.2f}")
-            with col_b:
-                st.metric("Units Sold", total_units)
-        else:
-            st.info("No sales records found for selected period")
+            total_billed = bills_df["Total"].sum() if "Total" in bills_df.columns else 0
+            bill_count = len(bills_df)
+            s1, s2 = st.columns(2)
+            s1.metric("Bills Issued", bill_count)
+            s2.metric("Total Billed", utils.format_currency(total_billed))
+
+            bill_options = {
+                f"{row['Bill No.']} — {row['Customer']} — ${row['Total']:,.2f}": row["Bill ID"]
+                for _, row in bills_df.iterrows()
+            }
+            selected_bill_label = st.selectbox("View bill details", list(bill_options.keys()))
+            selected_bill_id = bill_options[selected_bill_label]
+            bill, _ = billing.get_bill_detail(selected_bill_id)
+            if bill:
+                _render_bill_summary(bill)
+
+            if st.session_state.user["role"] == "owner":
+                st.markdown(utils.get_section_header("🗑️", "Delete Bill (Owner)"), unsafe_allow_html=True)
+                del_id = st.number_input("Bill ID to delete", min_value=1, step=1, key="delete_bill_id")
+                if st.button("Delete Bill & Restore Stock"):
+                    success, msg = billing.delete_bill(int(del_id), st.session_state.user["id"])
+                    if success:
+                        st.session_state.toast_msg = msg
+                        if st.session_state.get("last_bill_id") == int(del_id):
+                            del st.session_state.last_bill_id
+                        st.rerun()
+                    else:
+                        st.error(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -534,7 +680,7 @@ def show_expenses_page():
         if cat_filter != "All":
             expenses_df = expenses.get_expenses_by_category(cat_filter)
         else:
-            expenses_df = expenses.get_expenses_by_date_range(str(start_date), str(datetime.now()))
+            expenses_df = expenses.get_expenses_by_date_range(start_date, datetime.now().date())
 
         if not expenses_df.empty:
             # Format display
@@ -668,7 +814,7 @@ def show_reports_page():
         st.download_button(
             "📊  Download Full Report (Excel)",
             comprehensive,
-            "biztrack_full_report.xlsx",
+            "vyapar_full_report.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
@@ -922,17 +1068,23 @@ def show_settings_page():
             st.rerun()
 
         st.markdown(utils.get_section_header("🗃️", "Data Management"), unsafe_allow_html=True)
-        if st.button("Generate Sample Data", type="primary"):
-            if not st.session_state.sample_data_loaded:
-                success, msg = sample_data.generate_sample_data()
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("Seed MVP Data", type="primary"):
+                success, msg = sample_data.generate_sample_data(force=st.session_state.sample_data_loaded)
                 if success:
                     st.session_state.sample_data_loaded = True
                     st.success(msg)
                     st.rerun()
                 else:
                     st.info(msg)
-            else:
-                st.info("Sample data already loaded!")
+        with col_b:
+            if st.session_state.user['role'] == 'owner' and st.button("Force Reseed"):
+                success, msg = sample_data.generate_sample_data(force=True)
+                if success:
+                    st.session_state.sample_data_loaded = True
+                    st.success(msg)
+                    st.rerun()
 
         if st.session_state.user['role'] == 'owner':
             if st.button("Clear All Data"):
@@ -973,29 +1125,34 @@ def main():
             menu_icon="cast",
             default_index=0,
             styles={
-                "container": {"padding": "8px", "background-color": "transparent"},
-                "icon": {"color": "#a5b4fc", "font-size": "16px"},
+                "container": {
+                    "padding": "4px 0",
+                    "background-color": "rgba(0,0,0,0)",
+                    "margin": "0",
+                },
+                "icon": {"color": "#94a3b8", "font-size": "17px"},
                 "nav-link": {
                     "font-size": "14px",
                     "text-align": "left",
-                    "margin": "3px 0",
-                    "padding": "10px 16px",
-                    "border-radius": "12px",
-                    "--hover-color": "rgba(99,102,241,.12)",
-                    "color": "#c7d2fe",
+                    "margin": "2px 10px",
+                    "padding": "11px 16px",
+                    "border-radius": "10px",
+                    "--hover-color": "rgba(255,255,255,0.08)",
+                    "color": "#e2e8f0",
                     "font-weight": "500",
-                    "transition": "all .2s ease",
+                    "background-color": "rgba(0,0,0,0)",
                 },
                 "nav-link-selected": {
-                    "background": "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-                    "color": "white",
+                    "background-color": "rgba(0,0,0,0)",
+                    "background": "linear-gradient(135deg, #0f766e 0%, #0d9488 55%, #14b8a6 100%)",
+                    "color": "#ffffff",
                     "font-weight": "600",
-                    "box-shadow": "0 4px 12px rgba(99,102,241,.35)",
+                    "box-shadow": "0 4px 16px rgba(13, 148, 136, 0.35)",
                 },
             }
         )
 
-        st.markdown("---")
+        st.markdown("<div style='flex:1; min-height:12px'></div>", unsafe_allow_html=True)
 
         # User info card
         st.markdown(
@@ -1005,7 +1162,7 @@ def main():
 
         st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
 
-        if st.button("🚪  Logout", use_container_width=True):
+        if st.button("Logout", use_container_width=True, icon="🚪"):
             show_logout()
 
     # Page routing
