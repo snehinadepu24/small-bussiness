@@ -114,7 +114,9 @@ def get_restock_recommendations_insight():
     import forecasting
     recommendations = forecasting.get_restock_recommendations()
 
-    urgent = recommendations[recommendations['restock_needed'] == True].sort_values('days_of_stock')
+    urgent = recommendations[recommendations['restock_needed'] == True].copy()
+    urgent['days_of_stock'] = pd.to_numeric(urgent['days_of_stock'], errors='coerce')
+    urgent = urgent.sort_values('days_of_stock', na_position='last')
 
     output = []
     for _, row in urgent.head(5).iterrows():
@@ -123,7 +125,7 @@ def get_restock_recommendations_insight():
             'current_stock': row['current_stock'],
             'recommended_order': row['recommended_order'],
             'est_cost': row['order_cost'],
-            'urgency': 'High' if row['days_of_stock'] != 'High' and row['days_of_stock'] < 3 else 'Medium'
+            'urgency': 'High' if pd.notna(row['days_of_stock']) and row['days_of_stock'] < 3 else 'Medium'
         })
 
     return pd.DataFrame(output)

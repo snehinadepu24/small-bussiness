@@ -118,7 +118,7 @@ def get_restock_recommendations():
             "current_stock": current_stock,
             "reorder_level": reorder_level,
             "predicted_demand_14d": round(predicted_demand, 1),
-            "days_of_stock": round(days_of_stock, 1) if days_of_stock < 999 else "High",
+            "days_of_stock": round(days_of_stock, 1),
             "restock_needed": restock_needed,
             "recommended_order": recommended_order if restock_needed else 0,
             "unit_cost": row["cost_price"],
